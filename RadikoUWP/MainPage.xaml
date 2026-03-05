@@ -1,0 +1,143 @@
+<Page
+    x:Class="RadikoUWP.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:RadikoUWP"
+    xmlns:models="using:RadikoUWP.Models"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{StaticResource BackgroundBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ヘッダーエリア -->
+        <Grid Grid.Row="0" Background="{StaticResource RadikoBlueBrush}" Padding="16,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="radiko"
+                       FontSize="24"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="1"
+                       x:Name="AuthStatusText"
+                       Text="未認証"
+                       FontSize="12"
+                       Foreground="White"
+                       VerticalAlignment="Center"
+                       Opacity="0.85"/>
+        </Grid>
+
+        <!-- 認証ボタンエリア -->
+        <Grid Grid.Row="1" Padding="12,8" Background="#F5F5F5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       x:Name="AreaText"
+                       Text="エリア: -"
+                       FontSize="14"
+                       Foreground="{StaticResource TextBrush}"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    x:Name="AuthButton"
+                    Content="認証"
+                    Background="{StaticResource RadikoBlueBrush}"
+                    Foreground="White"
+                    Padding="16,8"
+                    Click="AuthButton_Click"/>
+        </Grid>
+
+        <!-- 放送局リスト -->
+        <ListView Grid.Row="2"
+                  x:Name="StationListView"
+                  Background="{StaticResource BackgroundBrush}"
+                  SelectionChanged="StationListView_SelectionChanged"
+                  IsItemClickEnabled="True"
+                  ItemClick="StationListView_ItemClick">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="models:Station">
+                    <Grid Padding="16,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0"
+                                   Text="{x:Bind Name}"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Grid.Row="1"
+                                   Text="{x:Bind Id}"
+                                   FontSize="12"
+                                   Foreground="#888888"/>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <!-- 再生コントロール (画面下部固定) -->
+        <Grid Grid.Row="3" Background="#F0F0F0" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 放送局名と再生/停止ボタン -->
+            <Grid Grid.Row="0" Padding="12,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock x:Name="NowPlayingLabel"
+                               Text="再生中:"
+                               FontSize="11"
+                               Foreground="#888888"/>
+                    <TextBlock x:Name="CurrentStationText"
+                               Text="-"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}"/>
+                </StackPanel>
+                <Button Grid.Column="1"
+                        x:Name="PlayStopButton"
+                        Content="▶ 再生"
+                        Background="{StaticResource AccentBrush}"
+                        Foreground="White"
+                        Padding="16,10"
+                        IsEnabled="False"
+                        Click="PlayStopButton_Click"/>
+            </Grid>
+
+            <!-- MediaPlayerElement (コンパクト、音声のみ) -->
+            <MediaPlayerElement Grid.Row="1"
+                                x:Name="MediaPlayerElement"
+                                AutoPlay="False"
+                                AreTransportControlsEnabled="False"
+                                Height="0"
+                                Visibility="Collapsed"/>
+
+            <!-- エラーメッセージ -->
+            <TextBlock x:Name="ErrorText"
+                       Grid.Row="1"
+                       Text=""
+                       FontSize="11"
+                       Foreground="Red"
+                       Padding="12,4"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed"/>
+        </Grid>
+    </Grid>
+</Page>
