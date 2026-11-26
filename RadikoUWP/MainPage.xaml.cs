@@ -23,7 +23,8 @@ namespace RadikoUWP
 
             _authService = new RadikoAuthService();
             _stationService = new RadikoStationService();
-            _playerService = new RadikoPlayerService();
+            _playerService = new RadikoPlayerService(_stationService);
+            _playerService.PlaybackFailed += PlayerService_PlaybackFailed;
 
             _stations = new ObservableCollection<Station>();
             StationListView.ItemsSource = _stations;
@@ -35,6 +36,7 @@ namespace RadikoUWP
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+            _playerService.PlaybackFailed -= PlayerService_PlaybackFailed;
             _playerService.Dispose();
         }
 
@@ -49,6 +51,11 @@ namespace RadikoUWP
 
             try
             {
+                // 再認証時は旧トークンでの再生を止める
+                _playerService.Stop();
+                PlayStopButton.Content = "▶ 再生";
+                PlayStopButton.IsEnabled = false;
+
                 await _authService.AuthenticateAsync();
 
                 AuthStatusText.Text = "認証済み";
@@ -122,8 +129,8 @@ namespace RadikoUWP
 
                 try
                 {
-                    await _playerService.PlayStationAsync(_selectedStation.Id);
-                    PlayStopButton.Content = "■ 停止";
+                    await _playerService.PlayStationAsync(_selectedStation.Id, _selectedStation.Name);
+                    PlayStopButton.Content = _playerService.IsPlaying ? "■ 停止" : "▶ 再生";
                 }
                 catch (Exception ex)
                 {
@@ -135,6 +142,18 @@ namespace RadikoUWP
                     PlayStopButton.IsEnabled = true;
                 }
             }
+        }
+
+        // 再生中のエラー (バックグラウンドスレッドから通知される)
+        private async void PlayerService_PlaybackFailed(object sender, string message)
+        {
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+            {
+                _playerService.Stop();
+                PlayStopButton.Content = "▶ 再生";
+                PlayStopButton.IsEnabled = _selectedStation != null && _authService.IsAuthenticated;
+                ShowError(message + " (トークン期限切れの場合は「再認証」してください)");
+            });
         }
 
         private void ShowError(string message)

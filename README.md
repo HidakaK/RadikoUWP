@@ -81,8 +81,10 @@ RadikoUWP/
     │   └── Station.cs            # 放送局モデル (Id, Name, AreaId)
     ├── Services/
     │   ├── RadikoAuthService.cs  # 2段階認証 (auth1 → partial key → auth2)
-    │   ├── RadikoStationService.cs  # 放送局一覧取得
-    │   └── RadikoPlayerService.cs   # HLS ストリーミング再生
+    │   ├── RadikoStationService.cs  # 放送局一覧・ライブストリーム URL 取得
+    │   ├── RadikoPlayerService.cs   # 再生制御 (MediaStreamSource → AdaptiveMediaSource の順に試行)
+    │   ├── RadikoHlsMediaSource.cs  # HLS (ID3 + AAC/ADTS packed audio) を自前パースして MediaStreamSource に供給
+    │   └── RadikoHttp.cs            # キャッシュ無効の Windows.Web.Http クライアント
     ├── Assets/                   # アプリアイコン・スプラッシュ画像
     └── Properties/
         └── AssemblyInfo.cs
@@ -101,10 +103,24 @@ radiko の 2 段階認証を以下の手順で実装しています:
 3. **auth2**: `https://radiko.jp/v2/api/auth2` へ GET リクエスト  
    → レスポンスボディ `"JP13,東京都,tokyo"` 形式からエリア ID を抽出
 
+## ライブ再生フロー
+
+1. `https://radiko.jp/v3/station/stream/pc_html5/{station_id}.xml` を取得し、  
+   `timefree="0"` (ライブ) / `areafree="0"` (エリア内) の `playlist_create_url` を取り出す  
+   (取得できない場合は `https://si-f-radiko.smartstream.ne.jp/so/playlist.m3u8` を使用)
+2. `{playlist_create_url}?station_id={id}&l=15&lsid={32桁16進ランダム}&type=b` を  
+   `X-Radiko-AuthToken` ヘッダー付きで取得 (マスター → チャンクリスト)
+3. セグメント (ID3 タグ付き AAC/ADTS) を取得して ADTS フレームに分解し、`MediaStreamSource` で再生  
+   プレイリストは TARGETDURATION の半分ごとに再取得して新しいセグメントを追加
+4. セグメントが ADTS でない場合などは OS 標準の `AdaptiveMediaSource` にフォールバック
+
+HTTP は UWP 既定のキャッシュを無効化したクライアントで行います (ライブのプレイリストが更新されない問題の回避)。
+
 ## 制限事項・注意事項
 
 - radiko の利用には radiko.jp の利用規約への同意が必要です
 - エリア判定は IP アドレスに基づきます (海外からは利用不可)
 - radiko プレミアム (エリアフリー) には未対応です
+- 認証トークンには有効期限があります。長時間再生で途切れた場合は「再認証」してください
 - ストリーミング URL や認証フローは radiko.jp のサービス変更により動作しなくなる場合があります
 - Windows 10 SDK 10.0.15063.0 が Visual Studio にインストールされていない場合はビルドできません

@@ -42,13 +42,6 @@
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
         <uap:LockScreen Notification="badge" BadgeLogo="Assets\LockScreenLogo.png"/>
       </uap:VisualElements>
-      <Extensions>
-        <uap:Extension Category="windows.backgroundTasks" EntryPoint="RadikoUWP.App">
-          <uap:BackgroundTasks>
-            <uap:Task Type="audio" />
-          </uap:BackgroundTasks>
-        </uap:Extension>
-      </Extensions>
     </Application>
   </Applications>
 
