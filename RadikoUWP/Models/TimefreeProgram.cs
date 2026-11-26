@@ -30,6 +30,8 @@ namespace RadikoUWP.Models
         public string Title => Info?.Title ?? "";
         public string Performer => Info?.Performer ?? "";
         public string TimeText => Info?.TimeText ?? "";
+        public string Summary => Info?.Summary ?? "";
+        public Visibility SummaryVisibility => string.IsNullOrEmpty(Summary) ? Visibility.Collapsed : Visibility.Visible;
         public TimeSpan Duration => Info != null ? Info.End - Info.Start : TimeSpan.Zero;
 
         public string DateTimeText =>

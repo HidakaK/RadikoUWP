@@ -51,12 +51,17 @@ namespace RadikoUWP.Models
                 OnPropertyChanged(nameof(ProgramTitle));
                 OnPropertyChanged(nameof(ProgramPerformer));
                 OnPropertyChanged(nameof(ProgramTime));
+                OnPropertyChanged(nameof(ProgramSummary));
+                OnPropertyChanged(nameof(ProgramSummaryVisibility));
             }
         }
 
         public string ProgramTitle => _program?.Title ?? "";
         public string ProgramPerformer => _program?.Performer ?? "";
         public string ProgramTime => _program?.TimeText ?? "";
+        public string ProgramSummary => _program?.Summary ?? "";
+        public Visibility ProgramSummaryVisibility =>
+            string.IsNullOrEmpty(ProgramSummary) ? Visibility.Collapsed : Visibility.Visible;
 
         public bool IsPlaying
         {

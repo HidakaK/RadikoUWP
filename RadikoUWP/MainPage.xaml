@@ -43,6 +43,11 @@
                     <TextBlock Text="{x:Bind ProgramTitle, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxLines="1"/>
+                    <!-- 番組の概要: 一覧では 2 行まで (全文は詳細ペイン) -->
+                    <TextBlock Text="{x:Bind ProgramSummary, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                               Visibility="{x:Bind ProgramSummaryVisibility, Mode=OneWay}"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
                 </StackPanel>
                 <!-- 再生中表示: 色だけに頼らずアイコン + 読み上げ名で示す -->
                 <SymbolIcon Grid.Column="2" Symbol="Volume" Margin="12,0,0,0"
@@ -67,6 +72,10 @@
                     <TextBlock Text="{x:Bind Performer}" Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxLines="1"/>
+                    <TextBlock Text="{x:Bind Summary}" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                               Visibility="{x:Bind SummaryVisibility}"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
                     <!-- 聴けない理由は色ではなくテキストで示す -->
                     <TextBlock Text="{x:Bind StatusText}" Style="{StaticResource CaptionTextBlockStyle}"
                                Visibility="{x:Bind StatusVisibility}"/>
@@ -180,37 +189,23 @@
                                 <TextBlock Text="タイムフリー" VerticalAlignment="Center"/>
                             </StackPanel>
                         </PivotItem.Header>
+                        <!--
+                            タイムフリーは 2 階層のリスト (マスター/詳細の階層化):
+                            放送局の一覧 → 選んだ局の番組表。戻るボタンで放送局の一覧に戻る
+                        -->
                         <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-
-                            <!-- 絞り込み (ドロップダウン リスト) -->
-                            <Grid x:Name="TimefreeFilterArea" Padding="12,8,12,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <ComboBox x:Name="TimefreeStationCombo" Header="放送局" HorizontalAlignment="Stretch"
-                                          DisplayMemberPath="Name" MinHeight="48"
-                                          SelectionChanged="TimefreeFilter_SelectionChanged"/>
-                                <ComboBox x:Name="TimefreeDateCombo" Grid.Column="2" Header="日付" HorizontalAlignment="Stretch"
-                                          DisplayMemberPath="Label" MinHeight="48"
-                                          SelectionChanged="TimefreeFilter_SelectionChanged"/>
-                            </Grid>
-
-                            <ProgressBar x:Name="TimefreeLoadingBar" Grid.Row="1" IsIndeterminate="True"
-                                         Visibility="Collapsed" AutomationProperties.Name="番組表を読み込み中"/>
-
-                            <ListView x:Name="ProgramListView" Grid.Row="2"
-                                      ItemTemplate="{StaticResource ProgramItemTemplate}"
-                                      SelectionMode="Single"
+                            <!-- 1 階層目: 放送局の一覧 -->
+                            <ListView x:Name="TimefreeStationListView"
+                                      ItemTemplate="{StaticResource StationItemTemplate}"
+                                      SelectionMode="None"
                                       IsItemClickEnabled="True"
-                                      ItemClick="ProgramListView_ItemClick"
-                                      AutomationProperties.Name="番組">
+                                      ItemClick="TimefreeStationListView_ItemClick"
+                                      AutomationProperties.Name="番組表を見る放送局">
+                                <ListView.Header>
+                                    <TextBlock Text="番組表を見る放送局を選んでください" Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                               Margin="12,8,12,4" TextWrapping="Wrap"/>
+                                </ListView.Header>
                                 <ListView.ItemContainerStyle>
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -219,10 +214,59 @@
                                 </ListView.ItemContainerStyle>
                             </ListView>
 
-                            <TextBlock x:Name="TimefreeEmptyText" Grid.Row="2" Style="{StaticResource BodyTextBlockStyle}"
-                                       Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
-                                       TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Margin="12" TextWrapping="Wrap" Visibility="Collapsed"/>
+                            <!-- 2 階層目: 番組表 -->
+                            <Grid x:Name="TimefreeProgramView" Visibility="Collapsed">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- 選んだ局と日付 (日付はドロップダウン リスト) -->
+                                <Grid Padding="12,8,12,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Border Style="{StaticResource LogoCardStyle}" Width="72" Height="36" Padding="2"
+                                            VerticalAlignment="Center">
+                                        <Image x:Name="TimefreeStationLogo" Stretch="Uniform"
+                                               AutomationProperties.AccessibilityView="Raw"/>
+                                    </Border>
+                                    <TextBlock x:Name="TimefreeStationName" Grid.Column="1" Margin="12,0,0,0"
+                                               Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                    <ComboBox x:Name="TimefreeDateCombo" Grid.Row="1" Grid.ColumnSpan="2" Header="日付"
+                                              HorizontalAlignment="Stretch" DisplayMemberPath="Label" MinHeight="48"
+                                              Margin="0,8,0,0" SelectionChanged="TimefreeFilter_SelectionChanged"/>
+                                </Grid>
+
+                                <ProgressBar x:Name="TimefreeLoadingBar" Grid.Row="1" IsIndeterminate="True"
+                                             Visibility="Collapsed" AutomationProperties.Name="番組表を読み込み中"/>
+
+                                <ListView x:Name="ProgramListView" Grid.Row="2"
+                                          ItemTemplate="{StaticResource ProgramItemTemplate}"
+                                          SelectionMode="Single"
+                                          IsItemClickEnabled="True"
+                                          ItemClick="ProgramListView_ItemClick"
+                                          AutomationProperties.Name="番組">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Padding" Value="12,0"/>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                </ListView>
+
+                                <TextBlock x:Name="TimefreeEmptyText" Grid.Row="2" Style="{StaticResource BodyTextBlockStyle}"
+                                           Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                           TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Margin="12" TextWrapping="Wrap" Visibility="Collapsed"/>
+                            </Grid>
                         </Grid>
                     </PivotItem>
                 </Pivot>
@@ -316,6 +360,13 @@
                                     StepFrequency="1" MinWidth="200" ValueChanged="VolumeSlider_ValueChanged"
                                     AutomationProperties.Name="音量"/>
                         </Grid>
+
+                        <!-- 番組の概要 (全文)。長文でも再生操作が押し出されないよう操作部の下に置く -->
+                        <StackPanel x:Name="DescriptionArea" Margin="0,24,0,0" Visibility="Collapsed">
+                            <TextBlock Text="番組の概要" Style="{StaticResource BaseTextBlockStyle}"/>
+                            <TextBlock x:Name="DetailDescription" Style="{StaticResource BodyTextBlockStyle}"
+                                       Margin="0,8,0,0" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </ScrollViewer>

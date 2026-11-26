@@ -50,6 +50,7 @@ namespace RadikoUWP
         private bool _isLoading;
         private bool _isStarting;           // 再生開始処理中
         private bool _timefreeInitialized;
+        private Station _timefreeStation;   // タイムフリーで番組表を表示中の局 (null なら局の一覧)
         private bool _suppressTimefreeFilter;
         private bool _updatingTimeline;
         private double _pendingSeekSeconds = -1;
@@ -68,7 +69,7 @@ namespace RadikoUWP
 
             StationListView.ItemsSource = _stations;
             ProgramListView.ItemsSource = _programs;
-            TimefreeStationCombo.ItemsSource = _stations;
+            TimefreeStationListView.ItemsSource = _stations;
             PlayerElement.SetMediaPlayer(_playerService.MediaPlayer);
 
             _programTimer.Tick += ProgramTimer_Tick;
@@ -129,7 +130,7 @@ namespace RadikoUWP
                 AreaText.Text = $"{_authService.AreaName} ({_authService.AreaId})";
 
                 var previousId = _selectedStation?.Id;
-                var previousTimefreeId = (TimefreeStationCombo.SelectedItem as Station)?.Id;
+                var previousTimefreeId = _timefreeStation?.Id;
                 var stations = await _stationService.GetStationsAsync(_authService.AreaId);
 
                 _suppressTimefreeFilter = true;
@@ -164,6 +165,7 @@ namespace RadikoUWP
                 AreaText.Text = "エリア: 不明";
                 _stations.Clear();
                 _programs.Clear();
+                ShowTimefreeStationList();
                 SelectStation(null, false);
                 ShowEmptyState("radiko に接続できませんでした。\n" + ex.Message);
             }
@@ -232,8 +234,9 @@ namespace RadikoUWP
 
         private async void MainPivot_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            UpdateBackButton();
             if (IsTimefreePivot && !_timefreeInitialized && _authService.IsAuthenticated)
-                await InitializeTimefreeAsync(_selectedStation?.Id);
+                await InitializeTimefreeAsync(null);
         }
 
         /// <summary>
@@ -274,12 +277,52 @@ namespace RadikoUWP
             var previousDate = (TimefreeDateCombo.SelectedItem as BroadcastDay)?.Date;
             TimefreeDateCombo.ItemsSource = days;
             TimefreeDateCombo.SelectedItem = days.FirstOrDefault(d => d.Date == previousDate) ?? days.FirstOrDefault();
-
-            TimefreeStationCombo.SelectedItem =
-                _stations.FirstOrDefault(s => s.Id == preferredStationId) ?? _stations.FirstOrDefault();
             _suppressTimefreeFilter = false;
 
+            // 再認証前に番組表を表示していた局があれば戻す。無ければ局の一覧から選んでもらう
+            var station = _stations.FirstOrDefault(s => s.Id == preferredStationId);
+            if (station != null)
+                await OpenTimefreeStationAsync(station);
+            else
+                ShowTimefreeStationList();
+        }
+
+        private async void TimefreeStationListView_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var station = e.ClickedItem as Station;
+            if (station != null)
+                await OpenTimefreeStationAsync(station);
+        }
+
+        /// <summary>2 階層目: 選んだ局の番組表を表示する。</summary>
+        private async Task OpenTimefreeStationAsync(Station station)
+        {
+            _timefreeStation = station;
+            TimefreeStationLogo.Source = station.Logo;
+            TimefreeStationName.Text = station.Name;
+            TimefreeStationListView.Visibility = Visibility.Collapsed;
+            TimefreeProgramView.Visibility = Visibility.Visible;
+            UpdateBackButton();
+
             await LoadTimefreeProgramsAsync();
+            ProgramListView.Focus(FocusState.Programmatic);
+        }
+
+        /// <summary>1 階層目: 放送局の一覧に戻る。</summary>
+        private void ShowTimefreeStationList()
+        {
+            var previous = _timefreeStation;
+            _timefreeStation = null;
+            _programs.Clear();
+            TimefreeProgramView.Visibility = Visibility.Collapsed;
+            TimefreeStationListView.Visibility = Visibility.Visible;
+            UpdateBackButton();
+
+            if (previous != null)
+            {
+                TimefreeStationListView.ScrollIntoView(previous);
+                TimefreeStationListView.Focus(FocusState.Programmatic);
+            }
         }
 
         private async void TimefreeFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -291,7 +334,7 @@ namespace RadikoUWP
 
         private async Task LoadTimefreeProgramsAsync()
         {
-            var station = TimefreeStationCombo.SelectedItem as Station;
+            var station = _timefreeStation;
             var day = TimefreeDateCombo.SelectedItem as BroadcastDay;
             _programs.Clear();
             TimefreeEmptyText.Visibility = Visibility.Collapsed;
@@ -318,7 +361,7 @@ namespace RadikoUWP
                 }
 
                 // 取得中に選択が変わった場合は最新の選択で表示し直す
-                if (TimefreeStationCombo.SelectedItem != station || TimefreeDateCombo.SelectedItem != day)
+                if (_timefreeStation != station || TimefreeDateCombo.SelectedItem != day)
                 {
                     await LoadTimefreeProgramsAsync();
                     return;
@@ -471,15 +514,26 @@ namespace RadikoUWP
         {
             // デスクトップ モードではタイトル バーの戻るボタンを表示 (電話はハードウェア/ソフトウェア ボタン)
             SystemNavigationManager.GetForCurrentView().AppViewBackButtonVisibility =
-                (IsNarrow && _showDetailInNarrow) ? AppViewBackButtonVisibility.Visible : AppViewBackButtonVisibility.Collapsed;
+                CanGoBackInApp ? AppViewBackButtonVisibility.Visible : AppViewBackButtonVisibility.Collapsed;
         }
+
+        /// <summary>アプリ内で戻れる階層があるか (狭い画面の詳細、またはタイムフリーの番組表)。</summary>
+        private bool CanGoBackInApp =>
+            (IsNarrow && _showDetailInNarrow) || (IsTimefreePivot && _timefreeStation != null);
 
         private void OnBackRequested(object sender, BackRequestedEventArgs e)
         {
             if (e.Handled)
                 return;
 
-            // 狭い画面で詳細を表示中なら一覧に戻る。それ以外は既定動作 (アプリを離れる)
+            // 深い階層から順に戻る: 詳細 (狭い画面) → 番組表 → 放送局の一覧。それ以外は既定動作 (アプリを離れる)
+            if (!(IsNarrow && _showDetailInNarrow) && IsTimefreePivot && _timefreeStation != null)
+            {
+                e.Handled = true;
+                ShowTimefreeStationList();
+                return;
+            }
+
             if (IsNarrow && _showDetailInNarrow)
             {
                 e.Handled = true;
@@ -532,6 +586,7 @@ namespace RadikoUWP
                 var program = station.Program;
                 DetailProgramTitle.Text = program?.Title ?? "番組情報はありません";
                 SetPerformer(program?.Performer);
+                SetDescription(program?.Description);
                 ProgramProgressArea.Visibility = program != null ? Visibility.Visible : Visibility.Collapsed;
                 TimelineArea.Visibility = Visibility.Collapsed;
                 UpdateProgramProgress();
@@ -543,6 +598,7 @@ namespace RadikoUWP
                 DetailStationName.Text = program.Station.Name;
                 DetailProgramTitle.Text = program.Title;
                 SetPerformer(program.Performer);
+                SetDescription(program.Info?.Description);
 
                 // 放送日時はテキストで表示し、タイムラインで再生位置を示す
                 ProgramProgressArea.Visibility = Visibility.Visible;
@@ -551,6 +607,12 @@ namespace RadikoUWP
                 TimelineArea.Visibility = Visibility.Visible;
                 UpdateTimeline();
             }
+        }
+
+        private void SetDescription(string description)
+        {
+            DetailDescription.Text = description ?? "";
+            DescriptionArea.Visibility = string.IsNullOrEmpty(description) ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private void SetPerformer(string performer)

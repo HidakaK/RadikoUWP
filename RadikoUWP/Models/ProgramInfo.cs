@@ -7,6 +7,13 @@ namespace RadikoUWP.Models
     {
         public string Title { get; set; }
         public string Performer { get; set; }
+
+        /// <summary>番組の概要 (HTML を除いたテキスト)。詳細ペインに全文を表示する。</summary>
+        public string Description { get; set; }
+
+        /// <summary>一覧用の概要 (改行を詰めた 1 段落。一覧では 2 行に切り詰めて表示)。</summary>
+        public string Summary =>
+            string.IsNullOrEmpty(Description) ? "" : System.Text.RegularExpressions.Regex.Replace(Description, @"\s+", " ").Trim();
         public DateTimeOffset Start { get; set; }
         public DateTimeOffset End { get; set; }
 

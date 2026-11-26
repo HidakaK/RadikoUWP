@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -117,6 +119,7 @@ namespace RadikoUWP.Services
                         {
                             Title = prog.Element("title")?.Value?.Trim(),
                             Performer = prog.Element("pfm")?.Value?.Trim(),
+                            Description = ExtractDescription(prog),
                             Start = start,
                             End = end
                         };
@@ -139,6 +142,36 @@ namespace RadikoUWP.Services
                 System.Diagnostics.Debug.WriteLine($"番組情報の取得に失敗: {ex.Message}");
             }
             return result;
+        }
+
+        /// <summary>
+        /// 番組の概要。desc (短い説明) と info (詳しい説明) を HTML を除いて結合する。
+        /// </summary>
+        private static string ExtractDescription(XElement prog)
+        {
+            var desc = HtmlToText(prog.Element("desc")?.Value);
+            var info = HtmlToText(prog.Element("info")?.Value);
+            if (string.IsNullOrEmpty(desc))
+                return info;
+            if (string.IsNullOrEmpty(info) || info.Contains(desc))
+                return string.IsNullOrEmpty(info) ? desc : info;
+            return desc + "\n\n" + info;
+        }
+
+        /// <summary>HTML 断片をプレーンテキストにする (改行タグは改行に、その他のタグは削除)。</summary>
+        public static string HtmlToText(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+                return "";
+
+            var text = Regex.Replace(html, @"<\s*br\s*/?\s*>", "\n", RegexOptions.IgnoreCase);
+            text = Regex.Replace(text, @"</\s*(p|div|li|h\d)\s*>", "\n", RegexOptions.IgnoreCase);
+            text = Regex.Replace(text, @"<[^>]*>", "");
+            text = WebUtility.HtmlDecode(text);
+            text = Regex.Replace(text, @"[ \t\u3000\u00A0]+", " ");
+            text = Regex.Replace(text, @" *\n *", "\n");
+            text = Regex.Replace(text, @"\n{3,}", "\n\n");
+            return text.Trim();
         }
 
         private static bool TryParseJst(string text, out DateTimeOffset value)
@@ -318,6 +351,7 @@ namespace RadikoUWP.Services
                         {
                             Title = prog.Element("title")?.Value?.Trim(),
                             Performer = prog.Element("pfm")?.Value?.Trim(),
+                            Description = ExtractDescription(prog),
                             Start = start,
                             End = end
                         }
