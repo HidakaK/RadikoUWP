@@ -37,7 +37,10 @@
         Square44x44Logo="Assets\Square44x44Logo.png"
         Description="radiko ライブストリーミングプレーヤー"
         BackgroundColor="transparent">
-        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png">
+        <!-- ライブ タイルは小・中・ワイド・大の全サイズに対応 (大は PC のみ。Windows 10 Mobile は非対応) -->
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"
+                         Square71x71Logo="Assets\Square71x71Logo.png"
+                         Square310x310Logo="Assets\Square310x310Logo.png">
         </uap:DefaultTile>
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
         <uap:LockScreen Notification="badge" BadgeLogo="Assets\LockScreenLogo.png"/>

@@ -58,6 +58,7 @@ namespace RadikoUWP
         private double _pendingSeekSeconds = -1;
         private string _flyoutImageUrl;     // 番組詳細フライアウトで開いたときに読み込む画像
         private string _detailImageUrl;     // 詳細ペインに表示中の番組画像
+        private Station _tileLiveStation;   // ライブ タイルに表示中のライブ局 (番組が変わったら更新)
 
         public MainPage()
         {
@@ -198,6 +199,17 @@ namespace RadikoUWP
             UpdateMiniPlayer();
             if (_playingStation != null && _playingProgram == null)
                 _playerService.UpdateDisplay(_playingStation.Name, _playingStation.ProgramTitle);
+
+            // ライブ タイル: 最後に聴いたライブ局の現在の番組に更新 (番組終了で期限切れ)
+            if (_tileLiveStation != null)
+            {
+                var tileStation = _stations.FirstOrDefault(st => st.Id == _tileLiveStation.Id);
+                if (tileStation != null)
+                {
+                    _tileLiveStation = tileStation;
+                    LiveTileService.Update(tileStation.Name, tileStation.Program, false);
+                }
+            }
 
             // 番組の経過表示は 30 秒ごと、番組情報は番組が切り替わったら再取得
             _programTimer.Interval = TimeSpan.FromSeconds(30);
@@ -780,7 +792,14 @@ namespace RadikoUWP
             {
                 await _playerService.PlayStationAsync(station.Id, station.Name, station.ProgramTitle);
                 if (!_playerService.IsPlaying && _playingStation == station)
+                {
                     ClearPlayingState();
+                }
+                else
+                {
+                    _tileLiveStation = station;
+                    LiveTileService.Update(station.Name, station.Program, false);
+                }
             }
             catch (Exception ex)
             {
@@ -811,9 +830,15 @@ namespace RadikoUWP
             {
                 await _playerService.PlayTimefreeAsync(program.Station.Id, program.Station.Name, program.Info, offset);
                 if (!_playerService.IsPlaying && _playingProgram == program)
+                {
                     ClearPlayingState();
+                }
                 else
+                {
                     _positionTimer.Start();
+                    _tileLiveStation = null;
+                    LiveTileService.Update(program.Station.Name, program.Info, true);
+                }
             }
             catch (Exception ex)
             {

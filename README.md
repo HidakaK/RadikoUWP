@@ -54,6 +54,8 @@ Visual Studio 2017 インストール時に **ユニバーサル Windows プラ�
 | `Square44x44Logo.png` | 44×44 | タイル・タスクバーアイコン |
 | `Square150x150Logo.png` | 150×150 | 標準タイル |
 | `Wide310x150Logo.png` | 310×150 | ワイドタイル |
+| `Square71x71Logo.png` | 71×71 | 小タイル |
+| `Square310x310Logo.png` | 310×310 | 大タイル (PC のみ) |
 | `LockScreenLogo.png` | 24×24 | ロック画面バッジ |
 | `SplashScreen.png` | 620×300 | スプラッシュスクリーン |
 
@@ -65,6 +67,21 @@ Visual Studio 2017 インストール時に **ユニバーサル Windows プラ�
 4. **タイムフリー** タブで放送局を選ぶと、その局の番組表 (過去 7 日間、日付はドロップダウンで切り替え) が表示される。番組を選んで **再生**。タイムラインで好きな位置へ移動できる。戻るボタンで放送局の一覧に戻る
 
 バックグラウンド再生に対応しています。ロック画面やキーボードのメディアキー (システムのメディアコントロール) からも操作できます。
+
+## ライブ タイル
+
+再生を始めると、スタート画面のタイルに 2 枚を交互に表示します (通知キュー)。
+
+| サイズ | 1 枚目 | 2 枚目 |
+|---|---|---|
+| 小 | 局名 | 放送時間 |
+| 中 | 局名 / 番組名 | 放送時間 / 出演者 / 概要の冒頭 |
+| ワイド | 局名 / 番組名 / ライブ・タイムフリー | 放送時間・局名 / 出演者 / 概要の冒頭 |
+| 大 (PC のみ) | 局名 / 番組名 / 出演者 / 放送時間 | 放送時間・局名 / 番組名 / 出演者 / 概要 |
+
+- ライブは番組終了時刻で期限切れ (古い情報を残さない)。アプリ起動中に番組が変わると自動で更新
+- タイムフリーは 1 日で期限切れ
+- `Assets/Square71x71Logo.png` (小)・`Assets/Square310x310Logo.png` (大) もプレースホルダーのため、本番用に差し替えてください
 
 ## 画面構成 (UWP UX ガイドライン準拠)
 
@@ -104,7 +121,8 @@ RadikoUWP/
     │   ├── RadikoStationService.cs  # 放送局一覧・ライブストリーム URL 取得
     │   ├── RadikoPlayerService.cs   # 再生制御 (MediaStreamSource → AdaptiveMediaSource の順に試行)
     │   ├── RadikoHlsMediaSource.cs  # HLS (ID3 + AAC/ADTS packed audio) を自前パースして MediaStreamSource に供給
-    │   └── RadikoHttp.cs            # キャッシュ無効の Windows.Web.Http クライアント
+    │   ├── RadikoHttp.cs            # キャッシュ無効の Windows.Web.Http クライアント
+    │   └── LiveTileService.cs       # ライブ タイル (全サイズ、2 枚を交互表示)
     ├── Assets/                   # アプリアイコン・スプラッシュ画像
     └── Properties/
         └── AssemblyInfo.cs
