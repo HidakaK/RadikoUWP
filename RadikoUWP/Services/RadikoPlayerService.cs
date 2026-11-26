@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using Windows.Media;
 using Windows.Media.Core;
@@ -52,7 +53,7 @@ namespace RadikoUWP.Services
             _mediaPlayer.PlaybackSession.PlaybackStateChanged += OnPlaybackStateChanged;
         }
 
-        public void SetAuthToken(string authToken)
+        public void SetAuthToken(string authToken, string areaId)
         {
             _authToken = authToken;
 
@@ -60,6 +61,93 @@ namespace RadikoUWP.Services
             _httpClient?.Dispose();
             _httpClient = RadikoHttp.CreateClient();
             _httpClient.DefaultRequestHeaders.TryAppendWithoutValidation("X-Radiko-AuthToken", _authToken);
+            if (!string.IsNullOrEmpty(areaId))
+                _httpClient.DefaultRequestHeaders.TryAppendWithoutValidation("X-Radiko-AreaId", areaId);
+        }
+
+        /// <summary>タイムフリー再生中かどうか。</summary>
+        public bool IsTimefree { get; private set; }
+
+        /// <summary>タイムフリー: 番組先頭からの再生位置。</summary>
+        public TimeSpan Position => _mediaPlayer.PlaybackSession.Position;
+
+        /// <summary>タイムフリー: 番組の長さ。</summary>
+        public TimeSpan Duration { get; private set; }
+
+        /// <summary>タイムフリー: 指定位置へ移動する。</summary>
+        public void Seek(TimeSpan position)
+        {
+            if (IsPlaying && IsTimefree && _mediaPlayer.PlaybackSession.CanSeek)
+                _mediaPlayer.PlaybackSession.Position = position;
+        }
+
+        public void Pause()
+        {
+            if (IsPlaying)
+                _mediaPlayer.Pause();
+        }
+
+        /// <summary>タイムフリー番組を最後まで再生したときに発生 (UI スレッド以外から呼ばれる)。</summary>
+        public event EventHandler PlaybackEnded;
+
+        /// <summary>
+        /// タイムフリー番組を再生する。startOffset は番組先頭からの開始位置。
+        /// </summary>
+        public async Task PlayTimefreeAsync(string stationId, string stationName, Models.ProgramInfo program, TimeSpan startOffset)
+        {
+            if (string.IsNullOrEmpty(_authToken) || _httpClient == null)
+                throw new InvalidOperationException("AuthToken が設定されていません。先に認証を行ってください。");
+
+            Stop();
+            _hasPlayed = false;
+            int session = ++_playSession;
+
+            var builders = await _stationService.GetTimefreeUrlBuildersAsync(stationId, program);
+            var errors = new List<string>();
+            RadikoHlsMediaSource hls = null;
+
+            foreach (var build in builders)
+            {
+                if (session != _playSession)
+                    return;
+                try
+                {
+                    hls = await RadikoHlsMediaSource.CreateTimefreeAsync(_httpClient, build, program.Start, program.End, startOffset);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    var httpEx = ex as RadikoHttpException;
+                    if (httpEx != null && ((int)httpEx.StatusCode == 401 || (int)httpEx.StatusCode == 403))
+                        errors.Add("配信が拒否されました (聴取時間の上限 (3 時間) に達したか、認証の期限切れの可能性があります)");
+                    else
+                        errors.Add(ex.Message);
+                    Debug.WriteLine($"タイムフリー失敗: {ex.Message}");
+                }
+            }
+
+            if (session != _playSession)
+            {
+                hls?.Dispose();
+                return;
+            }
+            if (hls == null)
+                throw new Exception(string.Join(" / ", errors.Distinct()));
+
+            hls.Failed += OnHlsFailed;
+            _hlsSource = hls;
+
+            var item = new MediaPlaybackItem(MediaSource.CreateFromMediaStreamSource(hls.MediaStreamSource));
+            _currentItem = item;
+            UpdateDisplay(stationName, program.Title);
+
+            IsTimefree = true;
+            Duration = program.End - program.Start;
+            CurrentStationId = stationId;
+            _mediaPlayer.Source = item;
+            _mediaPlayer.Play();
+            IsPlaying = true;
+            RaiseStateChanged();
         }
 
         public async Task PlayStationAsync(string stationId, string stationName, string programTitle = null)
@@ -132,6 +220,8 @@ namespace RadikoUWP.Services
             _currentItem = item;
             UpdateDisplay(string.IsNullOrEmpty(stationName) ? stationId : stationName, programTitle);
 
+            IsTimefree = false;
+            Duration = TimeSpan.Zero;
             CurrentStationId = stationId;
             _mediaPlayer.Source = item;
             _mediaPlayer.Play();
@@ -187,6 +277,8 @@ namespace RadikoUWP.Services
             _currentItem = null;
             bool changed = IsPlaying;
             IsPlaying = false;
+            IsTimefree = false;
+            Duration = TimeSpan.Zero;
             CurrentStationId = null;
             if (changed)
                 RaiseStateChanged();
@@ -227,7 +319,12 @@ namespace RadikoUWP.Services
             if (!IsPlaying)
                 return;
             IsPlaying = false;
-            PlaybackFailed?.Invoke(this, "ストリームが終了しました");
+
+            // タイムフリーは番組の終わりまで再生したら正常終了
+            if (IsTimefree && _hlsSource != null && !_hlsSource.HasFailed)
+                PlaybackEnded?.Invoke(this, EventArgs.Empty);
+            else
+                PlaybackFailed?.Invoke(this, "ストリームが終了しました");
         }
 
         private void OnMediaFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)

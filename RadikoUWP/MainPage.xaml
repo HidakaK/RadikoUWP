@@ -51,6 +51,32 @@
                             AutomationProperties.Name="再生中"/>
             </Grid>
         </DataTemplate>
+
+        <DataTemplate x:Key="ProgramItemTemplate" x:DataType="models:TimefreeProgram">
+            <Grid MinHeight="64" Padding="0,8" Opacity="{x:Bind ItemOpacity}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource CaptionTextBlockStyle}"
+                           Width="88" Margin="0,2,8,0" VerticalAlignment="Top"/>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource BaseTextBlockStyle}"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{x:Bind Performer}" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxLines="1"/>
+                    <!-- 聴けない理由は色ではなくテキストで示す -->
+                    <TextBlock Text="{x:Bind StatusText}" Style="{StaticResource CaptionTextBlockStyle}"
+                               Visibility="{x:Bind StatusVisibility}"/>
+                </StackPanel>
+                <SymbolIcon Grid.Column="2" Symbol="Volume" Margin="12,0,0,0"
+                            Foreground="{ThemeResource SystemControlForegroundAccentBrush}"
+                            Visibility="{x:Bind PlayingVisibility, Mode=OneWay}"
+                            AutomationProperties.Name="再生中"/>
+            </Grid>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid x:Name="LayoutRoot">
@@ -93,30 +119,113 @@
                 <ColumnDefinition x:Name="DetailColumn" Width="0"/>
             </Grid.ColumnDefinitions>
 
-            <!-- マスター: 放送局リスト -->
+            <!--
+                マスター: Pivot (ライブ / タイムフリー)
+                タブ/ピボットのガイドライン:
+                - 同じ階層の 2～5 個のカテゴリを頻繁に切り替える場合に使う
+                - 電話 (720 epx 未満): 上部・中央揃え・アイコン + テキスト・スワイプで切り替え
+                - PC (720 epx 以上): 上部・左揃え・テキストのみ
+                - 画面の向きに関係なくヘッダー数は同じ (2 個)
+            -->
             <Grid x:Name="MasterPane" Grid.Column="0">
-                <ListView x:Name="StationListView"
-                          ItemTemplate="{StaticResource StationItemTemplate}"
-                          SelectionMode="Single"
-                          IsItemClickEnabled="True"
-                          ItemClick="StationListView_ItemClick"
-                          SelectionChanged="StationListView_SelectionChanged"
-                          AutomationProperties.Name="放送局">
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Pivot x:Name="MainPivot" SelectionChanged="MainPivot_SelectionChanged"
+                       IsHeaderItemsCarouselEnabled="False" AutomationProperties.Name="表示の切り替え">
+                    <Pivot.Resources>
+                        <!-- ヘッダーのタッチ ターゲットを 48 epx 以上に。揃え位置はコード (UpdatePivotHeaderAlignment) で切り替え -->
+                        <Style TargetType="PivotHeaderItem">
+                            <Setter Property="MinHeight" Value="48"/>
                             <Setter Property="Padding" Value="12,0"/>
                         </Style>
-                    </ListView.ItemContainerStyle>
-                </ListView>
+                    </Pivot.Resources>
 
-                <!-- 空の状態 / 認証エラー -->
-                <StackPanel x:Name="EmptyState" Padding="12" VerticalAlignment="Center" Visibility="Collapsed">
-                    <TextBlock x:Name="EmptyStateText" Style="{StaticResource BodyTextBlockStyle}"
-                               TextAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,12"/>
-                    <Button x:Name="RetryButton" Content="再試行" HorizontalAlignment="Center" MinWidth="120"
-                            MinHeight="48" Click="RefreshButton_Click"/>
-                </StackPanel>
+                    <!-- ライブ -->
+                    <PivotItem x:Name="LivePivotItem" Margin="0">
+                        <PivotItem.Header>
+                            <StackPanel Orientation="Horizontal" AutomationProperties.Name="ライブ">
+                                <SymbolIcon x:Name="LiveHeaderIcon" Symbol="Volume" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="ライブ" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </PivotItem.Header>
+                        <Grid>
+                            <ListView x:Name="StationListView"
+                                      ItemTemplate="{StaticResource StationItemTemplate}"
+                                      SelectionMode="Single"
+                                      IsItemClickEnabled="True"
+                                      ItemClick="StationListView_ItemClick"
+                                      SelectionChanged="StationListView_SelectionChanged"
+                                      AutomationProperties.Name="放送局">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="Padding" Value="12,0"/>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                            </ListView>
+
+                            <!-- 空の状態 / 認証エラー -->
+                            <StackPanel x:Name="EmptyState" Padding="12" VerticalAlignment="Center" Visibility="Collapsed">
+                                <TextBlock x:Name="EmptyStateText" Style="{StaticResource BodyTextBlockStyle}"
+                                           TextAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                                <Button x:Name="RetryButton" Content="再試行" HorizontalAlignment="Center" MinWidth="120"
+                                        MinHeight="48" Click="RefreshButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </PivotItem>
+
+                    <!-- タイムフリー -->
+                    <PivotItem x:Name="TimefreePivotItem" Margin="0">
+                        <PivotItem.Header>
+                            <StackPanel Orientation="Horizontal" AutomationProperties.Name="タイムフリー">
+                                <SymbolIcon x:Name="TimefreeHeaderIcon" Symbol="Clock" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="タイムフリー" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </PivotItem.Header>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- 絞り込み (ドロップダウン リスト) -->
+                            <Grid x:Name="TimefreeFilterArea" Padding="12,8,12,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="TimefreeStationCombo" Header="放送局" HorizontalAlignment="Stretch"
+                                          DisplayMemberPath="Name" MinHeight="48"
+                                          SelectionChanged="TimefreeFilter_SelectionChanged"/>
+                                <ComboBox x:Name="TimefreeDateCombo" Grid.Column="2" Header="日付" HorizontalAlignment="Stretch"
+                                          DisplayMemberPath="Label" MinHeight="48"
+                                          SelectionChanged="TimefreeFilter_SelectionChanged"/>
+                            </Grid>
+
+                            <ProgressBar x:Name="TimefreeLoadingBar" Grid.Row="1" IsIndeterminate="True"
+                                         Visibility="Collapsed" AutomationProperties.Name="番組表を読み込み中"/>
+
+                            <ListView x:Name="ProgramListView" Grid.Row="2"
+                                      ItemTemplate="{StaticResource ProgramItemTemplate}"
+                                      SelectionMode="Single"
+                                      IsItemClickEnabled="True"
+                                      ItemClick="ProgramListView_ItemClick"
+                                      AutomationProperties.Name="番組">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="Padding" Value="12,0"/>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                            </ListView>
+
+                            <TextBlock x:Name="TimefreeEmptyText" Grid.Row="2" Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                       TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="12" TextWrapping="Wrap" Visibility="Collapsed"/>
+                        </Grid>
+                    </PivotItem>
+                </Pivot>
             </Grid>
 
             <!-- 詳細: 再生中の局と番組 -->
@@ -125,7 +234,7 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <Grid>
                     <!-- 局が未選択のとき -->
-                    <TextBlock x:Name="NoSelectionText" Text="放送局を選んでください"
+                    <TextBlock x:Name="NoSelectionText" Text="放送局または番組を選んでください"
                                Style="{StaticResource SubtitleTextBlockStyle}"
                                Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"/>
@@ -155,6 +264,26 @@
                                          AutomationProperties.Name="番組の経過"/>
                             <TextBlock x:Name="DetailTime" Grid.Row="1" Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" Margin="0,4,0,0"/>
+                        </Grid>
+
+                        <!-- タイムフリー: メディアのタイムライン (シーク) -->
+                        <Grid x:Name="TimelineArea" Margin="0,12,0,0" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="TimelineSlider" Grid.ColumnSpan="2" Minimum="0" Maximum="1" StepFrequency="1"
+                                    IsThumbToolTipEnabled="False" IsEnabled="False"
+                                    ValueChanged="TimelineSlider_ValueChanged" AutomationProperties.Name="再生位置"/>
+                            <TextBlock x:Name="TimelinePositionText" Grid.Row="1" Style="{StaticResource CaptionTextBlockStyle}"
+                                       Text="0:00"/>
+                            <TextBlock x:Name="TimelineDurationText" Grid.Row="1" Grid.Column="1"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" Text="0:00"/>
                         </Grid>
 
                         <!-- 再生操作 (コンテンツ内の主要アクション) -->
@@ -266,6 +395,8 @@
                         <Setter Target="MainCommandBar.Background" Value="Transparent"/>
                         <Setter Target="EmptyState.Padding" Value="24"/>
                         <Setter Target="DetailContent.Padding" Value="24,16"/>
+                        <Setter Target="LiveHeaderIcon.Visibility" Value="Collapsed"/>
+                        <Setter Target="TimefreeHeaderIcon.Visibility" Value="Collapsed"/>
                         <Setter Target="ErrorBar.Padding" Value="24,8"/>
                     </VisualState.Setters>
                 </VisualState>
@@ -280,6 +411,8 @@
                         <Setter Target="MainCommandBar.Background" Value="Transparent"/>
                         <Setter Target="EmptyState.Padding" Value="24"/>
                         <Setter Target="DetailContent.Padding" Value="48,24"/>
+                        <Setter Target="LiveHeaderIcon.Visibility" Value="Collapsed"/>
+                        <Setter Target="TimefreeHeaderIcon.Visibility" Value="Collapsed"/>
                         <Setter Target="ErrorBar.Padding" Value="24,8"/>
                     </VisualState.Setters>
                 </VisualState>
