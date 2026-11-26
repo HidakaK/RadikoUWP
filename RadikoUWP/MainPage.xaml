@@ -123,7 +123,7 @@
 
             <!-- MediaPlayerElement (コンパクト、音声のみ) -->
             <MediaPlayerElement Grid.Row="1"
-                                x:Name="MediaPlayerElement"
+                                x:Name="PlayerElement"
                                 AutoPlay="False"
                                 AreTransportControlsEnabled="False"
                                 Height="0"

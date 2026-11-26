@@ -30,7 +30,7 @@ namespace RadikoUWP
             StationListView.ItemsSource = _stations;
 
             // MediaPlayerElement に MediaPlayer を関連付け
-            MediaPlayerElement.SetMediaPlayer(_playerService.MediaPlayer);
+            PlayerElement.SetMediaPlayer(_playerService.MediaPlayer);
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
