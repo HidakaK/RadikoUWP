@@ -546,6 +546,28 @@ namespace RadikoUWP
             }
         }
 
+        private void MiniPlayStopButton_Click(object sender, RoutedEventArgs e)
+        {
+            HideError();
+            if (_isStarting || _playingStation == null)
+            {
+                // 接続中は取り消し
+                StopPlayback();
+            }
+            else if (_playerService.IsPaused)
+            {
+                _playerService.Resume();
+            }
+            else if (_playingProgram != null)
+            {
+                _playerService.Pause();
+            }
+            else
+            {
+                StopPlayback();
+            }
+        }
+
         private void MiniPlayer_Click(object sender, RoutedEventArgs e)
         {
             if (_playingProgram != null)
@@ -642,6 +664,30 @@ namespace RadikoUWP
                 return;
 
             MiniLogo.Source = _playingStation.Logo;
+
+            // 再生中の対象に対する操作: タイムフリーは一時停止/再開、ライブは停止 (一時停止中は再開)
+            bool paused = !_isStarting && _playerService.IsPaused;
+            string label;
+            Symbol symbol;
+            if (paused)
+            {
+                label = "再生";
+                symbol = Symbol.Play;
+            }
+            else if (_playingProgram != null && !_isStarting)
+            {
+                label = "一時停止";
+                symbol = Symbol.Pause;
+            }
+            else
+            {
+                label = "停止";
+                symbol = Symbol.Stop;
+            }
+            MiniPlayStopIcon.Symbol = symbol;
+            AutomationProperties.SetName(MiniPlayStopButton, label);
+            ToolTipService.SetToolTip(MiniPlayStopButton, label);
+
             MiniStationName.Text = _playingProgram != null
                 ? $"{_playingStation.Name} · タイムフリー"
                 : _playingStation.Name;
@@ -840,10 +886,6 @@ namespace RadikoUWP
             AutomationProperties.SetName(PlayStopButton, label);
             PlayStopButton.IsEnabled = hasSelection && _authService.IsAuthenticated;
 
-            PlayStopAppBarButton.Icon = new SymbolIcon(symbol);
-            PlayStopAppBarButton.Label = label;
-            ToolTipService.SetToolTip(PlayStopAppBarButton, label);
-            PlayStopAppBarButton.IsEnabled = PlayStopButton.IsEnabled;
 
             string status = active ? PlaybackStatusLabel() : null;
             bool buffering = status == "接続しています…";

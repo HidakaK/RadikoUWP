@@ -105,11 +105,13 @@
                        Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
         </StackPanel>
 
-        <!-- コマンド バー (幅に応じて Grid.Row 1 ⇔ 5 を切り替え) -->
+        <!--
+            コマンド バー (幅に応じて Grid.Row 1 ⇔ 5 を切り替え)
+            特定の局・番組に向かないコマンドだけを置く。再生/停止は対象の近く (詳細ペインとミニ プレーヤー) に置き、
+            同じコマンドを画面に重複させない (コマンド デザインの基本)
+        -->
         <CommandBar x:Name="MainCommandBar" Grid.Row="5" DefaultLabelPosition="Bottom"
                     Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}">
-            <AppBarButton x:Name="PlayStopAppBarButton" Icon="Play" Label="再生" IsEnabled="False"
-                          ToolTipService.ToolTip="再生" Click="PlayStopButton_Click"/>
             <AppBarButton x:Name="RefreshAppBarButton" Icon="Refresh" Label="更新"
                           ToolTipService.ToolTip="放送局と番組情報を更新 (再認証)" Click="RefreshButton_Click"/>
             <CommandBar.SecondaryCommands>
@@ -396,32 +398,43 @@
             </Grid>
         </Border>
 
-        <!-- ミニ プレーヤー (狭い画面で一覧表示中のみ。タップで詳細へ) -->
-        <Button x:Name="MiniPlayer" Grid.Row="4" Visibility="Collapsed"
-                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                MinHeight="64" Padding="12,8" BorderThickness="0,1,0,0"
-                BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}"
-                Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"
-                Click="MiniPlayer_Click" AutomationProperties.Name="再生中の放送局を表示">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Border Style="{StaticResource LogoCardStyle}" Width="72" Height="36" Padding="2">
-                    <Image x:Name="MiniLogo" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
-                </Border>
-                <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
-                    <TextBlock x:Name="MiniStationName" Style="{StaticResource BaseTextBlockStyle}"
-                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
-                    <TextBlock x:Name="MiniProgramTitle" Style="{StaticResource CaptionTextBlockStyle}"
-                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
-                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxLines="1"/>
-                </StackPanel>
-                <SymbolIcon Grid.Column="2" Symbol="Up" AutomationProperties.AccessibilityView="Raw"/>
-            </Grid>
-        </Button>
+        <!--
+            ミニ プレーヤー (狭い画面で一覧表示中のみ)
+            左: タップで再生中の局・番組の詳細へ / 右: 再生中の対象に対する再生・停止 (対象の名前と並べて表示)
+        -->
+        <Grid x:Name="MiniPlayer" Grid.Row="4" Visibility="Collapsed" BorderThickness="0,1,0,0"
+              BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}"
+              Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button x:Name="MiniPlayerOpenButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                    MinHeight="64" Padding="12,8" BorderThickness="0" Background="Transparent"
+                    Click="MiniPlayer_Click" AutomationProperties.Name="再生中の番組の詳細を表示">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource LogoCardStyle}" Width="72" Height="36" Padding="2">
+                        <Image x:Name="MiniLogo" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="MiniStationName" Style="{StaticResource BaseTextBlockStyle}"
+                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                        <TextBlock x:Name="MiniProgramTitle" Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxLines="1"/>
+                    </StackPanel>
+                </Grid>
+            </Button>
+            <Button x:Name="MiniPlayStopButton" Grid.Column="1" Width="64" MinHeight="64" Padding="0"
+                    BorderThickness="0" Background="Transparent"
+                    Click="MiniPlayStopButton_Click" AutomationProperties.Name="停止" ToolTipService.ToolTip="停止">
+                <SymbolIcon x:Name="MiniPlayStopIcon" Symbol="Stop"/>
+            </Button>
+        </Grid>
 
         <!-- 音声再生用 (表示なし) -->
         <MediaPlayerElement x:Name="PlayerElement" Grid.Row="0" Width="0" Height="0"
