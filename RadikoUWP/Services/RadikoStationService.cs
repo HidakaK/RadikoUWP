@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,12 @@ namespace RadikoUWP.Services
     public class RadikoStationService
     {
         private const string STATION_LIST_URL = "https://radiko.jp/v3/station/list/{0}.xml";
+
+        // エリア内の各局で現在放送中の番組
+        private const string NOW_PROGRAM_URL = "https://radiko.jp/v3/program/now/{0}.xml";
+
+        // 番組表の日時は日本時間
+        private static readonly TimeSpan JST = TimeSpan.FromHours(9);
 
         // 放送局ごとのストリーム URL 一覧 (HTML5 プレーヤーと同じ情報源)
         private const string STREAM_INFO_URL = "https://radiko.jp/v3/station/stream/pc_html5/{0}.xml";
@@ -40,12 +47,107 @@ namespace RadikoUWP.Services
                     {
                         Id = id,
                         Name = name,
-                        AreaId = areaId
+                        AreaId = areaId,
+                        LogoUrl = SelectLogoUrl(stationElement)
                     });
                 }
             }
 
             return stations;
+        }
+
+        /// <summary>
+        /// ロゴ要素 (&lt;logo width="..." height="..."&gt;URL&lt;/logo&gt;) のうち横幅 224 前後のものを選ぶ。
+        /// </summary>
+        private static string SelectLogoUrl(XElement stationElement)
+        {
+            string best = null;
+            int bestScore = int.MaxValue;
+            foreach (var logo in stationElement.Elements("logo"))
+            {
+                var url = logo.Value?.Trim();
+                if (string.IsNullOrEmpty(url) || !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                int width;
+                if (!int.TryParse((string)logo.Attribute("width"), out width))
+                    width = 0;
+                int score = Math.Abs(width - 224);
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    best = url;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// エリア内の各局で現在放送中の番組を取得する (キー: 局 ID)。取得失敗時は空。
+        /// </summary>
+        public async Task<Dictionary<string, ProgramInfo>> GetNowProgramsAsync(string areaId)
+        {
+            var result = new Dictionary<string, ProgramInfo>();
+            try
+            {
+                var url = new Uri(string.Format(NOW_PROGRAM_URL, areaId));
+                var xmlContent = await RadikoHttp.GetStringAsync(_httpClient, url, CancellationToken.None);
+                var doc = XDocument.Parse(xmlContent);
+                var now = DateTimeOffset.Now;
+
+                foreach (var stationElement in doc.Descendants("station"))
+                {
+                    var id = (string)stationElement.Attribute("id");
+                    if (string.IsNullOrEmpty(id))
+                        continue;
+
+                    ProgramInfo current = null;
+                    foreach (var prog in stationElement.Descendants("prog"))
+                    {
+                        DateTimeOffset start, end;
+                        if (!TryParseJst((string)prog.Attribute("ft"), out start) ||
+                            !TryParseJst((string)prog.Attribute("to"), out end))
+                            continue;
+
+                        var info = new ProgramInfo
+                        {
+                            Title = prog.Element("title")?.Value?.Trim(),
+                            Performer = prog.Element("pfm")?.Value?.Trim(),
+                            Start = start,
+                            End = end
+                        };
+
+                        if (current == null)
+                            current = info;
+                        if (start <= now && now < end)
+                        {
+                            current = info;
+                            break;
+                        }
+                    }
+
+                    if (current != null)
+                        result[id] = current;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"番組情報の取得に失敗: {ex.Message}");
+            }
+            return result;
+        }
+
+        private static bool TryParseJst(string text, out DateTimeOffset value)
+        {
+            DateTime dt;
+            if (!string.IsNullOrEmpty(text) &&
+                DateTime.TryParseExact(text, "yyyyMMddHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
+            {
+                value = new DateTimeOffset(dt, JST);
+                return true;
+            }
+            value = default(DateTimeOffset);
+            return false;
         }
 
         /// <summary>

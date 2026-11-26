@@ -2,142 +2,288 @@
     x:Class="RadikoUWP.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:RadikoUWP"
     xmlns:models="using:RadikoUWP.Models"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Background="{StaticResource BackgroundBrush}">
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <!--
+        UWP UX ガイドライン準拠のレイアウト
+        - ブレークポイント 320 / 720 / 1024 epx (AdaptiveTrigger)
+        - 720 epx 未満: マスター/詳細を「スタック」表示、コマンド バーは画面下部、左右余白 12 epx
+        - 720 epx 以上: マスター/詳細を「左右に並べる」表示、コマンド バーは画面上部、左右余白 24 epx
+        - 色はテーマ リソース (淡色/濃色/ハイ コントラスト対応)、文字は書体見本のスタイル
+        - サイズ・余白は 4 epx グリッド、タッチ ターゲットは 48 epx 以上
+    -->
 
-        <!-- ヘッダーエリア -->
-        <Grid Grid.Row="0" Background="{StaticResource RadikoBlueBrush}" Padding="16,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       Text="radiko"
-                       FontSize="24"
-                       FontWeight="Bold"
-                       Foreground="White"
-                       VerticalAlignment="Center"/>
-            <TextBlock Grid.Column="1"
-                       x:Name="AuthStatusText"
-                       Text="未認証"
-                       FontSize="12"
-                       Foreground="White"
-                       VerticalAlignment="Center"
-                       Opacity="0.85"/>
-        </Grid>
+    <Page.Resources>
+        <!-- 局ロゴは濃色テーマでも見えるよう常に白地のカードに載せる -->
+        <Style x:Key="LogoCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource SystemControlForegroundBaseLowBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Padding" Value="4"/>
+        </Style>
 
-        <!-- 認証ボタンエリア -->
-        <Grid Grid.Row="1" Padding="12,8" Background="#F5F5F5">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       x:Name="AreaText"
-                       Text="エリア: -"
-                       FontSize="14"
-                       Foreground="{StaticResource TextBrush}"
-                       VerticalAlignment="Center"/>
-            <Button Grid.Column="1"
-                    x:Name="AuthButton"
-                    Content="認証"
-                    Background="{StaticResource RadikoBlueBrush}"
-                    Foreground="White"
-                    Padding="16,8"
-                    Click="AuthButton_Click"/>
-        </Grid>
-
-        <!-- 放送局リスト -->
-        <ListView Grid.Row="2"
-                  x:Name="StationListView"
-                  Background="{StaticResource BackgroundBrush}"
-                  SelectionChanged="StationListView_SelectionChanged"
-                  IsItemClickEnabled="True"
-                  ItemClick="StationListView_ItemClick">
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="models:Station">
-                    <Grid Padding="16,12">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0"
-                                   Text="{x:Bind Name}"
-                                   FontSize="16"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextBrush}"/>
-                        <TextBlock Grid.Row="1"
-                                   Text="{x:Bind Id}"
-                                   FontSize="12"
-                                   Foreground="#888888"/>
-                    </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
-
-        <!-- 再生コントロール (画面下部固定) -->
-        <Grid Grid.Row="3" Background="#F0F0F0" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <!-- 放送局名と再生/停止ボタン -->
-            <Grid Grid.Row="0" Padding="12,8">
+        <DataTemplate x:Key="StationItemTemplate" x:DataType="models:Station">
+            <Grid MinHeight="64" Padding="0,8">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock x:Name="NowPlayingLabel"
-                               Text="再生中:"
-                               FontSize="11"
-                               Foreground="#888888"/>
-                    <TextBlock x:Name="CurrentStationText"
-                               Text="-"
-                               FontSize="15"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextBrush}"/>
+                <Border Style="{StaticResource LogoCardStyle}" Width="96" Height="48" VerticalAlignment="Center">
+                    <Image Source="{x:Bind Logo}" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource BaseTextBlockStyle}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                    <TextBlock Text="{x:Bind ProgramTitle, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxLines="1"/>
                 </StackPanel>
-                <Button Grid.Column="1"
-                        x:Name="PlayStopButton"
-                        Content="▶ 再生"
-                        Background="{StaticResource AccentBrush}"
-                        Foreground="White"
-                        Padding="16,10"
-                        IsEnabled="False"
-                        Click="PlayStopButton_Click"/>
+                <!-- 再生中表示: 色だけに頼らずアイコン + 読み上げ名で示す -->
+                <SymbolIcon Grid.Column="2" Symbol="Volume" Margin="12,0,0,0"
+                            Foreground="{ThemeResource SystemControlForegroundAccentBrush}"
+                            Visibility="{x:Bind PlayingVisibility, Mode=OneWay}"
+                            AutomationProperties.Name="再生中"/>
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid x:Name="LayoutRoot">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- 0: タイトル -->
+            <RowDefinition Height="Auto"/>  <!-- 1: 上部コマンド バー (広い画面) -->
+            <RowDefinition Height="Auto"/>  <!-- 2: 進行状況 -->
+            <RowDefinition Height="*"/>     <!-- 3: コンテンツ (マスター/詳細) -->
+            <RowDefinition Height="Auto"/>  <!-- 4: ミニ プレーヤー (狭い画面) -->
+            <RowDefinition Height="Auto"/>  <!-- 5: 下部コマンド バー (狭い画面) -->
+        </Grid.RowDefinitions>
+
+        <!-- タイトル領域 -->
+        <StackPanel x:Name="TitleArea" Grid.Row="0" Padding="12,8,12,4">
+            <TextBlock x:Name="PageTitle" Text="radiko" Style="{StaticResource TitleTextBlockStyle}"/>
+            <TextBlock x:Name="AreaText" Text="エリアを確認しています…" Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+        </StackPanel>
+
+        <!-- コマンド バー (幅に応じて Grid.Row 1 ⇔ 5 を切り替え) -->
+        <CommandBar x:Name="MainCommandBar" Grid.Row="5" DefaultLabelPosition="Bottom"
+                    Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}">
+            <AppBarButton x:Name="PlayStopAppBarButton" Icon="Play" Label="再生" IsEnabled="False"
+                          ToolTipService.ToolTip="再生" Click="PlayStopButton_Click"/>
+            <AppBarButton x:Name="RefreshAppBarButton" Icon="Refresh" Label="更新"
+                          ToolTipService.ToolTip="放送局と番組情報を更新 (再認証)" Click="RefreshButton_Click"/>
+            <CommandBar.SecondaryCommands>
+                <AppBarButton x:Name="AboutAppBarButton" Label="このアプリについて" Click="AboutButton_Click"/>
+            </CommandBar.SecondaryCommands>
+        </CommandBar>
+
+        <!-- 進行状況 (認証・一覧取得中。ユーザー操作をブロックしないので不定バー) -->
+        <ProgressBar x:Name="LoadingBar" Grid.Row="2" IsIndeterminate="True" Visibility="Collapsed"
+                     AutomationProperties.Name="読み込み中"/>
+
+        <!-- コンテンツ: マスター/詳細 -->
+        <Grid x:Name="ContentArea" Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="MasterColumn" Width="*"/>
+                <ColumnDefinition x:Name="DetailColumn" Width="0"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- マスター: 放送局リスト -->
+            <Grid x:Name="MasterPane" Grid.Column="0">
+                <ListView x:Name="StationListView"
+                          ItemTemplate="{StaticResource StationItemTemplate}"
+                          SelectionMode="Single"
+                          IsItemClickEnabled="True"
+                          ItemClick="StationListView_ItemClick"
+                          SelectionChanged="StationListView_SelectionChanged"
+                          AutomationProperties.Name="放送局">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Padding" Value="12,0"/>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                </ListView>
+
+                <!-- 空の状態 / 認証エラー -->
+                <StackPanel x:Name="EmptyState" Padding="12" VerticalAlignment="Center" Visibility="Collapsed">
+                    <TextBlock x:Name="EmptyStateText" Style="{StaticResource BodyTextBlockStyle}"
+                               TextAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                    <Button x:Name="RetryButton" Content="再試行" HorizontalAlignment="Center" MinWidth="120"
+                            MinHeight="48" Click="RefreshButton_Click"/>
+                </StackPanel>
             </Grid>
 
-            <!-- MediaPlayerElement (コンパクト、音声のみ) -->
-            <MediaPlayerElement Grid.Row="1"
-                                x:Name="PlayerElement"
-                                AutoPlay="False"
-                                AreTransportControlsEnabled="False"
-                                Height="0"
-                                Visibility="Collapsed"/>
+            <!-- 詳細: 再生中の局と番組 -->
+            <Border x:Name="DetailPane" Grid.Column="1" Visibility="Collapsed"
+                    BorderThickness="0" BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <Grid>
+                    <!-- 局が未選択のとき -->
+                    <TextBlock x:Name="NoSelectionText" Text="放送局を選んでください"
+                               Style="{StaticResource SubtitleTextBlockStyle}"
+                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"/>
 
-            <!-- エラーメッセージ -->
-            <TextBlock x:Name="ErrorText"
-                       Grid.Row="1"
-                       Text=""
-                       FontSize="11"
-                       Foreground="Red"
-                       Padding="12,4"
-                       TextWrapping="Wrap"
-                       Visibility="Collapsed"/>
+                    <StackPanel x:Name="DetailContent" Padding="12,16" MaxWidth="640" HorizontalAlignment="Stretch"
+                                Visibility="Collapsed">
+                        <Border Style="{StaticResource LogoCardStyle}" Width="232" Height="108" HorizontalAlignment="Left">
+                            <Image x:Name="DetailLogo" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
+                        </Border>
+
+                        <TextBlock x:Name="DetailStationName" Style="{StaticResource TitleTextBlockStyle}"
+                                   Margin="0,16,0,0" TextWrapping="Wrap"/>
+
+                        <TextBlock x:Name="DetailProgramTitle" Style="{StaticResource SubtitleTextBlockStyle}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="DetailPerformer" Style="{StaticResource BodyTextBlockStyle}"
+                                   Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                   Margin="0,4,0,0" TextWrapping="Wrap"/>
+
+                        <!-- 番組の経過 (進行状況確定バーを位置インジケーターとして使用) -->
+                        <Grid x:Name="ProgramProgressArea" Margin="0,12,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <ProgressBar x:Name="ProgramProgress" Minimum="0" Maximum="100"
+                                         AutomationProperties.Name="番組の経過"/>
+                            <TextBlock x:Name="DetailTime" Grid.Row="1" Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" Margin="0,4,0,0"/>
+                        </Grid>
+
+                        <!-- 再生操作 (コンテンツ内の主要アクション) -->
+                        <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
+                            <Button x:Name="PlayStopButton" MinWidth="136" MinHeight="48"
+                                    Background="{ThemeResource SystemControlBackgroundAccentBrush}"
+                                    Foreground="{ThemeResource SystemControlForegroundChromeWhiteBrush}"
+                                    Click="PlayStopButton_Click" AutomationProperties.Name="再生">
+                                <StackPanel Orientation="Horizontal">
+                                    <SymbolIcon x:Name="PlayStopIcon" Symbol="Play"/>
+                                    <TextBlock x:Name="PlayStopText" Text="再生" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <ProgressRing x:Name="BufferingRing" Width="24" Height="24" Margin="16,0,0,0"
+                                          IsActive="False" Visibility="Collapsed" AutomationProperties.Name="接続中"/>
+                            <TextBlock x:Name="PlaybackStatusText" Style="{StaticResource BodyTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- 音量 -->
+                        <Grid Margin="0,24,0,0" MaxWidth="360" HorizontalAlignment="Left">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <SymbolIcon Symbol="Volume" VerticalAlignment="Center" Margin="0,0,12,0"
+                                        AutomationProperties.AccessibilityView="Raw"/>
+                            <Slider x:Name="VolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="100"
+                                    StepFrequency="1" MinWidth="200" ValueChanged="VolumeSlider_ValueChanged"
+                                    AutomationProperties.Name="音量"/>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+            </Border>
         </Grid>
+
+        <!-- エラー表示 (アイコン + テキスト。色だけに頼らない) -->
+        <Border x:Name="ErrorBar" Grid.Row="3" VerticalAlignment="Top" Visibility="Collapsed"
+                Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"
+                BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,0,0,1"
+                Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <FontIcon Glyph="&#xE783;" FontFamily="Segoe MDL2 Assets" VerticalAlignment="Top" Margin="0,2,12,0"
+                          AutomationProperties.AccessibilityView="Raw"/>
+                <TextBlock x:Name="ErrorText" Grid.Column="1" Style="{StaticResource BodyTextBlockStyle}"
+                           TextWrapping="Wrap" VerticalAlignment="Center"/>
+                <Button Grid.Column="2" Width="48" Height="48" Margin="8,-8,-8,-8" Background="Transparent"
+                        Click="DismissErrorButton_Click" AutomationProperties.Name="エラーを閉じる"
+                        ToolTipService.ToolTip="閉じる">
+                    <SymbolIcon Symbol="Cancel"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ミニ プレーヤー (狭い画面で一覧表示中のみ。タップで詳細へ) -->
+        <Button x:Name="MiniPlayer" Grid.Row="4" Visibility="Collapsed"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                MinHeight="64" Padding="12,8" BorderThickness="0,1,0,0"
+                BorderBrush="{ThemeResource SystemControlForegroundBaseLowBrush}"
+                Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"
+                Click="MiniPlayer_Click" AutomationProperties.Name="再生中の放送局を表示">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource LogoCardStyle}" Width="72" Height="36" Padding="2">
+                    <Image x:Name="MiniLogo" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="MiniStationName" Style="{StaticResource BaseTextBlockStyle}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                    <TextBlock x:Name="MiniProgramTitle" Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxLines="1"/>
+                </StackPanel>
+                <SymbolIcon Grid.Column="2" Symbol="Up" AutomationProperties.AccessibilityView="Raw"/>
+            </Grid>
+        </Button>
+
+        <!-- 音声再生用 (表示なし) -->
+        <MediaPlayerElement x:Name="PlayerElement" Grid.Row="0" Width="0" Height="0"
+                            AreTransportControlsEnabled="False" Visibility="Collapsed"/>
+
+        <VisualStateManager.VisualStateGroups>
+            <!-- ウィンドウ幅によるレイアウト -->
+            <VisualStateGroup x:Name="WindowWidthStates">
+                <VisualState x:Name="NarrowState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0"/>
+                    </VisualState.StateTriggers>
+                </VisualState>
+                <VisualState x:Name="WideState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="720"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="TitleArea.Padding" Value="24,12,24,4"/>
+                        <Setter Target="MainCommandBar.(Grid.Row)" Value="1"/>
+                        <Setter Target="MainCommandBar.DefaultLabelPosition" Value="Right"/>
+                        <Setter Target="MainCommandBar.Background" Value="Transparent"/>
+                        <Setter Target="EmptyState.Padding" Value="24"/>
+                        <Setter Target="DetailContent.Padding" Value="24,16"/>
+                        <Setter Target="ErrorBar.Padding" Value="24,8"/>
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="LargeState">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1024"/>
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="TitleArea.Padding" Value="24,12,24,4"/>
+                        <Setter Target="MainCommandBar.(Grid.Row)" Value="1"/>
+                        <Setter Target="MainCommandBar.DefaultLabelPosition" Value="Right"/>
+                        <Setter Target="MainCommandBar.Background" Value="Transparent"/>
+                        <Setter Target="EmptyState.Padding" Value="24"/>
+                        <Setter Target="DetailContent.Padding" Value="48,24"/>
+                        <Setter Target="ErrorBar.Padding" Value="24,8"/>
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
     </Grid>
 </Page>

@@ -19,9 +19,23 @@ namespace RadikoUWP.Services
         private RadikoHlsMediaSource _hlsSource;
         private int _playSession;
 
+        private MediaPlaybackItem _currentItem;
+
         public MediaPlayer MediaPlayer => _mediaPlayer;
+
+        /// <summary>ストリームを開いている (再生中・バッファリング中・一時停止中) かどうか。</summary>
         public bool IsPlaying { get; private set; }
         public string CurrentStationId { get; private set; }
+
+        public MediaPlaybackState PlaybackState => _mediaPlayer.PlaybackSession.PlaybackState;
+
+        private volatile bool _hasPlayed;
+
+        /// <summary>一度再生が始まった後に一時停止された状態 (システムのメディアコントロールからの一時停止など)。</summary>
+        public bool IsPaused => IsPlaying && _hasPlayed && PlaybackState == MediaPlaybackState.Paused;
+
+        /// <summary>再生状態が変わったときに発生 (UI スレッド以外から呼ばれる)。</summary>
+        public event EventHandler StateChanged;
 
         /// <summary>再生中にエラーで停止したときに発生 (UI スレッド以外から呼ばれる)。</summary>
         public event EventHandler<string> PlaybackFailed;
@@ -35,6 +49,7 @@ namespace RadikoUWP.Services
             _mediaPlayer.AutoPlay = false;
             _mediaPlayer.MediaEnded += OnMediaEnded;
             _mediaPlayer.MediaFailed += OnMediaFailed;
+            _mediaPlayer.PlaybackSession.PlaybackStateChanged += OnPlaybackStateChanged;
         }
 
         public void SetAuthToken(string authToken)
@@ -47,13 +62,14 @@ namespace RadikoUWP.Services
             _httpClient.DefaultRequestHeaders.TryAppendWithoutValidation("X-Radiko-AuthToken", _authToken);
         }
 
-        public async Task PlayStationAsync(string stationId, string stationName)
+        public async Task PlayStationAsync(string stationId, string stationName, string programTitle = null)
         {
             if (string.IsNullOrEmpty(_authToken) || _httpClient == null)
                 throw new InvalidOperationException("AuthToken が設定されていません。先に認証を行ってください。");
 
             // 再生中の場合は停止してから開始
             Stop();
+            _hasPlayed = false;
             int session = ++_playSession;
 
             var candidates = await _stationService.GetLiveStreamUrlsAsync(stationId);
@@ -113,16 +129,36 @@ namespace RadikoUWP.Services
                 throw new Exception("ストリームを開けませんでした: " + string.Join(" / ", errors));
 
             var item = new MediaPlaybackItem(source);
-            var props = item.GetDisplayProperties();
-            props.Type = MediaPlaybackType.Music;
-            props.MusicProperties.Title = string.IsNullOrEmpty(stationName) ? stationId : stationName;
-            props.MusicProperties.Artist = "radiko";
-            item.ApplyDisplayProperties(props);
+            _currentItem = item;
+            UpdateDisplay(string.IsNullOrEmpty(stationName) ? stationId : stationName, programTitle);
 
             CurrentStationId = stationId;
             _mediaPlayer.Source = item;
             _mediaPlayer.Play();
             IsPlaying = true;
+            RaiseStateChanged();
+        }
+
+        /// <summary>一時停止中 (システムのメディアコントロールで一時停止された場合) の再開。</summary>
+        public void Resume()
+        {
+            if (IsPlaying)
+                _mediaPlayer.Play();
+        }
+
+        /// <summary>システムのメディアコントロール (ロック画面など) に表示する情報を更新する。</summary>
+        public void UpdateDisplay(string stationName, string programTitle)
+        {
+            var item = _currentItem;
+            if (item == null)
+                return;
+
+            var props = item.GetDisplayProperties();
+            props.Type = MediaPlaybackType.Music;
+            props.MusicProperties.Title = string.IsNullOrEmpty(programTitle) ? stationName : programTitle;
+            props.MusicProperties.Artist = string.IsNullOrEmpty(programTitle) ? "radiko" : stationName;
+            props.MusicProperties.AlbumTitle = "radiko";
+            item.ApplyDisplayProperties(props);
         }
 
         public void Stop()
@@ -148,8 +184,12 @@ namespace RadikoUWP.Services
                 _hlsSource = null;
             }
 
+            _currentItem = null;
+            bool changed = IsPlaying;
             IsPlaying = false;
             CurrentStationId = null;
+            if (changed)
+                RaiseStateChanged();
         }
 
         public void Dispose()
@@ -157,8 +197,21 @@ namespace RadikoUWP.Services
             Stop();
             _mediaPlayer.MediaEnded -= OnMediaEnded;
             _mediaPlayer.MediaFailed -= OnMediaFailed;
+            _mediaPlayer.PlaybackSession.PlaybackStateChanged -= OnPlaybackStateChanged;
             _mediaPlayer.Dispose();
             _httpClient?.Dispose();
+        }
+
+        private void OnPlaybackStateChanged(MediaPlaybackSession sender, object args)
+        {
+            if (sender.PlaybackState == MediaPlaybackState.Playing)
+                _hasPlayed = true;
+            RaiseStateChanged();
+        }
+
+        private void RaiseStateChanged()
+        {
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void OnHlsFailed(object sender, Exception ex)

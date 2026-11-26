@@ -27,6 +27,10 @@ namespace RadikoUWP.Services
         private const int StartSegmentsFromLiveEdge = 3;
         private const int MaxConsecutiveErrors = 6;
 
+        // 一時停止中 (システムのメディアコントロールからの一時停止など) に溜め込む最大秒数。
+        // 超えた分は古いものから捨てる (メモリ節約とライブとの遅延抑制)
+        private const int MaxBufferedSeconds = 90;
+
         private readonly HttpClient _httpClient;
         private readonly Uri _playlistUri;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
@@ -256,6 +260,16 @@ namespace RadikoUWP.Services
                     continue;
                 _frames.Enqueue(f);
                 _frameSignal.Release();
+            }
+
+            if (_sampleRate > 0)
+            {
+                int maxFrames = MaxBufferedSeconds * _sampleRate / 1024;
+                AdtsFrame dropped;
+                while (_frames.Count > maxFrames && _frames.TryDequeue(out dropped))
+                {
+                    // セマフォのカウントは余るが、消費側は空なら再度待つので問題ない
+                }
             }
         }
 

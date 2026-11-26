@@ -97,6 +97,7 @@
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Models\Station.cs" />
+    <Compile Include="Models\ProgramInfo.cs" />
     <Compile Include="Services\RadikoAuthService.cs" />
     <Compile Include="Services\RadikoStationService.cs" />
     <Compile Include="Services\RadikoPlayerService.cs" />
