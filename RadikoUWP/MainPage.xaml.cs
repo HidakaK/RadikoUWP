@@ -11,7 +11,9 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Automation;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Controls.Primitives;
+using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 
 namespace RadikoUWP
@@ -54,6 +56,8 @@ namespace RadikoUWP
         private bool _suppressTimefreeFilter;
         private bool _updatingTimeline;
         private double _pendingSeekSeconds = -1;
+        private string _flyoutImageUrl;     // 番組詳細フライアウトで開いたときに読み込む画像
+        private string _detailImageUrl;     // 詳細ペインに表示中の番組画像
 
         public MainPage()
         {
@@ -593,6 +597,8 @@ namespace RadikoUWP
             {
                 DetailContent.Visibility = Visibility.Collapsed;
                 NoSelectionText.Visibility = Visibility.Visible;
+                _detailImageUrl = null;
+                DetailProgramImage.Source = null;
                 return;
             }
 
@@ -608,7 +614,7 @@ namespace RadikoUWP
                 var program = station.Program;
                 DetailProgramTitle.Text = program?.Title ?? "番組情報はありません";
                 SetPerformer(program?.Performer);
-                SetDescription(program?.Description);
+                SetDescription(program?.Description, program?.ImageUrl);
                 ProgramProgressArea.Visibility = program != null ? Visibility.Visible : Visibility.Collapsed;
                 TimelineArea.Visibility = Visibility.Collapsed;
                 UpdateProgramProgress();
@@ -620,7 +626,7 @@ namespace RadikoUWP
                 DetailStationName.Text = program.Station.Name;
                 DetailProgramTitle.Text = program.Title;
                 SetPerformer(program.Performer);
-                SetDescription(program.Info?.Description);
+                SetDescription(program.Info?.Description, program.Info?.ImageUrl);
 
                 // 放送日時はテキストで表示し、タイムラインで再生位置を示す
                 ProgramProgressArea.Visibility = Visibility.Visible;
@@ -631,10 +637,31 @@ namespace RadikoUWP
             }
         }
 
-        private void SetDescription(string description)
+        private void SetDescription(string description, string imageUrl)
         {
             DetailDescription.Text = description ?? "";
-            DescriptionArea.Visibility = string.IsNullOrEmpty(description) ? Visibility.Collapsed : Visibility.Visible;
+            DetailDescription.Visibility = string.IsNullOrEmpty(description) ? Visibility.Collapsed : Visibility.Visible;
+
+            if (_detailImageUrl != imageUrl)
+            {
+                _detailImageUrl = imageUrl;
+                DetailProgramImage.Source = CreateProgramImage(imageUrl, DetailProgramImage);
+            }
+            DetailProgramImage.Visibility = imageUrl != null ? Visibility.Visible : Visibility.Collapsed;
+
+            DescriptionArea.Visibility = string.IsNullOrEmpty(description) && imageUrl == null
+                ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        /// <summary>番組画像を縮小デコードで読み込む。読み込めなければ画像を隠す。</summary>
+        private static ImageSource CreateProgramImage(string url, Image target)
+        {
+            if (string.IsNullOrEmpty(url))
+                return null;
+            var bitmap = new BitmapImage { DecodePixelWidth = 720 };
+            bitmap.ImageFailed += (s, e) => target.Visibility = Visibility.Collapsed;
+            bitmap.UriSource = new Uri(url);
+            return bitmap;
         }
 
         private void SetPerformer(string performer)
@@ -931,6 +958,97 @@ namespace RadikoUWP
         {
             if (_playerService != null)
                 _playerService.MediaPlayer.Volume = e.NewValue / 100.0;
+        }
+
+        #endregion
+
+        #region 番組の詳細フライアウト (長押し / 右クリック / メニュー キー)
+
+        /// <summary>
+        /// ContextRequested はタッチの長押し・マウスの右クリック・ペンのバレル ボタン・
+        /// キーボードのアプリケーション キー / Shift+F10 で共通に発生する。長押しの判定時間や表示は OS 標準のまま。
+        /// </summary>
+        private void ListView_ContextRequested(UIElement sender, ContextRequestedEventArgs args)
+        {
+            var list = sender as ListViewBase;
+            var container = FindAncestor<SelectorItem>(args.OriginalSource as DependencyObject);
+            if (list == null || container == null)
+                return;
+
+            var item = list.ItemFromContainer(container);
+            var station = item as Station;
+            var timefree = item as TimefreeProgram;
+
+            ProgramInfo info;
+            string title;
+            string timeText;
+            if (station != null)
+            {
+                info = station.Program;
+                title = info?.Title ?? station.Name;
+                timeText = info != null ? $"放送中 · {info.TimeText} · {station.Name}" : $"{station.Name} · 番組情報はありません";
+            }
+            else if (timefree != null)
+            {
+                info = timefree.Info;
+                title = timefree.Title;
+                timeText = $"{timefree.DateTimeText} · {timefree.Station.Name}";
+                if (!timefree.IsAvailable)
+                    timeText += $" · {timefree.StatusText}";
+            }
+            else
+            {
+                return;
+            }
+
+            ProgramInfoTitle.Text = title ?? "";
+            ProgramInfoTime.Text = timeText;
+            SetTextOrCollapse(ProgramInfoPerformer, info?.Performer);
+            SetTextOrCollapse(ProgramInfoDescription, info?.Description);
+            _flyoutImageUrl = info?.ImageUrl;
+            ProgramInfoImage.Visibility = Visibility.Collapsed;
+
+            // 長文はフライアウト内でスクロール (画面の高さの 6 割まで)
+            ProgramInfoScroll.MaxHeight = Math.Max(200, Window.Current.Bounds.Height * 0.6);
+            ProgramInfoScroll.ChangeView(null, 0, null, true);
+
+            args.Handled = true;
+            ProgramInfoFlyout.ShowAt(container);
+        }
+
+        private void ProgramInfoFlyout_Opened(object sender, object e)
+        {
+            // 画像は開いたときだけ読み込む
+            if (_flyoutImageUrl != null)
+            {
+                ProgramInfoImage.Source = CreateProgramImage(_flyoutImageUrl, ProgramInfoImage);
+                ProgramInfoImage.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void ProgramInfoFlyout_Closed(object sender, object e)
+        {
+            // 閉じたら画像を解放 (モバイルのメモリ節約)
+            ProgramInfoImage.Source = null;
+            _flyoutImageUrl = null;
+        }
+
+        private static void SetTextOrCollapse(TextBlock block, string text)
+        {
+            block.Text = text ?? "";
+            block.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        private static T FindAncestor<T>(DependencyObject element) where T : DependencyObject
+        {
+            while (element != null)
+            {
+                var match = element as T;
+                if (match != null)
+                    return match;
+                element = VisualTreeHelper.GetParent(element);
+            }
+            return null;
         }
 
         #endregion

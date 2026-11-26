@@ -120,6 +120,7 @@ namespace RadikoUWP.Services
                             Title = prog.Element("title")?.Value?.Trim(),
                             Performer = prog.Element("pfm")?.Value?.Trim(),
                             Description = ExtractDescription(prog),
+                            ImageUrl = ExtractImageUrl(prog),
                             Start = start,
                             End = end
                         };
@@ -156,6 +157,12 @@ namespace RadikoUWP.Services
             if (string.IsNullOrEmpty(info) || info.Contains(desc))
                 return string.IsNullOrEmpty(info) ? desc : info;
             return desc + "\n\n" + info;
+        }
+
+        private static string ExtractImageUrl(XElement prog)
+        {
+            var url = prog.Element("img")?.Value?.Trim();
+            return !string.IsNullOrEmpty(url) && url.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? url : null;
         }
 
         /// <summary>HTML 断片をプレーンテキストにする (改行タグは改行に、その他のタグは削除)。</summary>
@@ -352,6 +359,7 @@ namespace RadikoUWP.Services
                             Title = prog.Element("title")?.Value?.Trim(),
                             Performer = prog.Element("pfm")?.Value?.Trim(),
                             Description = ExtractDescription(prog),
+                            ImageUrl = ExtractImageUrl(prog),
                             Start = start,
                             End = end
                         }

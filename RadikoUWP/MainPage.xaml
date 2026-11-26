@@ -139,6 +139,40 @@
                 - 画面の向きに関係なくヘッダー数は同じ (2 個)
             -->
             <Grid x:Name="MasterPane" Grid.Column="0">
+                <!--
+                    番組の詳細フライアウト (情報提供型 UI)
+                    - 長押し / 右クリック / ペン / キーボードのメニュー キーで開く (ContextRequested)
+                    - 情報のみ。再生などのコマンドは置かない。外側タップ / 戻る / Esc で閉じる
+                    - 画像は開いたときだけ読み込み、閉じたら解放する (モバイルのメモリ節約)
+                -->
+                <FlyoutBase.AttachedFlyout>
+                    <Flyout x:Name="ProgramInfoFlyout" Placement="Bottom"
+                            Opened="ProgramInfoFlyout_Opened" Closed="ProgramInfoFlyout_Closed">
+                        <Flyout.FlyoutPresenterStyle>
+                            <Style TargetType="FlyoutPresenter">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="ScrollViewer.VerticalScrollMode" Value="Disabled"/>
+                            </Style>
+                        </Flyout.FlyoutPresenterStyle>
+                        <ScrollViewer x:Name="ProgramInfoScroll" VerticalScrollBarVisibility="Auto" MaxWidth="400">
+                            <StackPanel Padding="16" AutomationProperties.Name="番組の詳細">
+                                <Image x:Name="ProgramInfoImage" MaxWidth="360" MaxHeight="240" Stretch="Uniform"
+                                       HorizontalAlignment="Left" Margin="0,0,0,12" Visibility="Collapsed"
+                                       AutomationProperties.AccessibilityView="Raw"/>
+                                <TextBlock x:Name="ProgramInfoTitle" Style="{StaticResource SubtitleTextBlockStyle}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock x:Name="ProgramInfoTime" Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                           Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="ProgramInfoPerformer" Style="{StaticResource BodyTextBlockStyle}"
+                                           Margin="0,8,0,0" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="ProgramInfoDescription" Style="{StaticResource BodyTextBlockStyle}"
+                                           Margin="0,12,0,0" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Flyout>
+                </FlyoutBase.AttachedFlyout>
+
                 <Pivot x:Name="MainPivot" SelectionChanged="MainPivot_SelectionChanged"
                        IsHeaderItemsCarouselEnabled="False" AutomationProperties.Name="表示の切り替え">
                     <Pivot.Resources>
@@ -163,12 +197,14 @@
                                       SelectionMode="Single"
                                       IsItemClickEnabled="True"
                                       ItemClick="StationListView_ItemClick"
+                                      ContextRequested="ListView_ContextRequested"
                                       SelectionChanged="StationListView_SelectionChanged"
                                       AutomationProperties.Name="放送局">
                                 <ListView.ItemContainerStyle>
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                         <Setter Property="Padding" Value="12,0"/>
+                                        <Setter Property="AutomationProperties.HelpText" Value="長押しまたは右クリックで番組の詳細を表示"/>
                                     </Style>
                                 </ListView.ItemContainerStyle>
                             </ListView>
@@ -202,6 +238,7 @@
                                       SelectionMode="None"
                                       IsItemClickEnabled="True"
                                       ItemClick="TimefreeStationListView_ItemClick"
+                                      ContextRequested="ListView_ContextRequested"
                                       AutomationProperties.Name="番組表を見る放送局">
                                 <ListView.Header>
                                     <TextBlock Text="番組表を見る放送局を選んでください" Style="{StaticResource CaptionTextBlockStyle}"
@@ -212,6 +249,7 @@
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                         <Setter Property="Padding" Value="12,0"/>
+                                        <Setter Property="AutomationProperties.HelpText" Value="長押しまたは右クリックで番組の詳細を表示"/>
                                     </Style>
                                 </ListView.ItemContainerStyle>
                             </ListView>
@@ -255,11 +293,13 @@
                                           SelectionMode="Single"
                                           IsItemClickEnabled="True"
                                           ItemClick="ProgramListView_ItemClick"
+                                          ContextRequested="ListView_ContextRequested"
                                           AutomationProperties.Name="番組">
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem">
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                             <Setter Property="Padding" Value="12,0"/>
+                                            <Setter Property="AutomationProperties.HelpText" Value="長押しまたは右クリックで番組の詳細を表示"/>
                                         </Style>
                                     </ListView.ItemContainerStyle>
                                 </ListView>
@@ -366,6 +406,9 @@
                         <!-- 番組の概要 (全文)。長文でも再生操作が押し出されないよう操作部の下に置く -->
                         <StackPanel x:Name="DescriptionArea" Margin="0,24,0,0" Visibility="Collapsed">
                             <TextBlock Text="番組の概要" Style="{StaticResource BaseTextBlockStyle}"/>
+                            <Image x:Name="DetailProgramImage" MaxWidth="360" MaxHeight="240" Stretch="Uniform"
+                                   HorizontalAlignment="Left" Margin="0,8,0,0" Visibility="Collapsed"
+                                   AutomationProperties.AccessibilityView="Raw"/>
                             <TextBlock x:Name="DetailDescription" Style="{StaticResource BodyTextBlockStyle}"
                                        Margin="0,8,0,0" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
                         </StackPanel>
