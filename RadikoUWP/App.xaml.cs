@@ -1,6 +1,8 @@
 using System;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
+using Windows.Foundation;
+using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -18,6 +20,9 @@ namespace RadikoUWP
         protected override void OnLaunched(LaunchActivatedEventArgs e)
         {
             Frame rootFrame = Window.Current.Content as Frame;
+
+            // 最小幅は最小ブレークポイント (320 epx) に合わせる
+            ApplicationView.GetForCurrentView().SetPreferredMinSize(new Size(320, 500));
 
             if (rootFrame == null)
             {
